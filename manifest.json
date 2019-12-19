@@ -1,0 +1,12 @@
+{
+    "domain": "mill",
+    "name": "Mill",
+    "documentation": "https://www.home-assistant.io/integrations/lvi",
+    "requirements": [
+      "lviheater==0.1.0"
+    ],
+    "dependencies": [],
+    "codeowners": [
+      "@hwaastad"
+    ]
+  }
