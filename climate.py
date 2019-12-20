@@ -195,7 +195,7 @@ class LviHeater(ClimateDevice):
         """Set new target hvac mode."""
         if hvac_mode == HVAC_MODE_HEAT:
             await self._conn.heater_control(self._heater.id_device, power_status=1)
-        elif hvac_mode == HVAC_MODE_OFF and not self._heater.is_gen1:
+        elif hvac_mode == HVAC_MODE_OFF:
             await self._conn.heater_control(self._heater.id_device, power_status=0)
 
     async def async_update(self):
