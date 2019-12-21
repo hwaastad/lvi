@@ -100,8 +100,7 @@ class LviHeater(ClimateDevice):
     def available(self):
         """Return True if entity is available."""
         """TODO: Check up when oven is turned off"""
-        #return self._heater.available
-        return True
+        return self._heater.available
 
     @property
     def unique_id(self):
@@ -111,13 +110,13 @@ class LviHeater(ClimateDevice):
     @property
     def name(self):
         """Return the name of the entity."""
-        return self._heater.nom_appareil
+        return self._heater.nom_appareil + '-' + self._heater.room.name
 
     @property
     def device_state_attributes(self):
         """Return the state attributes."""
         res = {
-            "heating": self._heater.heating_up == '1'
+            "heating": self._heater.heating_up
         }
         if self._heater.room:
             res["room"] = self._heater.room.name
@@ -170,7 +169,7 @@ class LviHeater(ClimateDevice):
         """Return hvac operation ie. heat, cool mode.
         Need to be one of HVAC_MODE_*.
         """
-        if self._heater.heating_up == '1':
+        if self._heater.power_status == 1:
             return HVAC_MODE_HEAT
         return HVAC_MODE_OFF
 
