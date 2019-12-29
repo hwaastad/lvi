@@ -11,6 +11,12 @@ from homeassistant.components.climate.const import (
     HVAC_MODE_OFF,
     SUPPORT_FAN_MODE,
     SUPPORT_TARGET_TEMPERATURE,
+    SUPPORT_PRESET_MODE,
+    PRESET_AWAY,
+    PRESET_ECO,
+    PRESET_BOOST,
+    PRESET_COMFORT,
+    PRESET_NONE,
 )
 from homeassistant.const import (
     ATTR_TEMPERATURE,
@@ -30,11 +36,12 @@ from .const import (
     MAX_TEMP,
     MIN_TEMP,
     SERVICE_SET_ROOM_TEMP,
+    PRESET_PROGRAM
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE
+SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE | SUPPORT_PRESET_MODE
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {vol.Required(CONF_USERNAME): cv.string, vol.Required(CONF_PASSWORD): cv.string}
@@ -132,7 +139,17 @@ class LviHeater(ClimateDevice):
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
-        return self._heater.consigne_confort
+       
+        if self._heater.gv_mode == '0':
+            return self._heater.consigne_confort
+        elif self._heater.gv_mode == '8':
+            return self._heater.consigne_manuel
+        elif self._heater.gv_mode == '3':
+            return self._heater.consigne_eco
+        elif self._heater.gv_mode == '4':
+            return self._heater.consigne_boost
+        else: 
+            return self._heater.consigne_hg
 
     @property
     def target_temperature_step(self):
@@ -179,6 +196,43 @@ class LviHeater(ClimateDevice):
         Need to be a subset of HVAC_MODES.
         """
         return [HVAC_MODE_HEAT, HVAC_MODE_OFF]
+
+    @property
+    def preset_mode(self):
+        """Return the current preset mode, e.g., home, away, temp."""
+
+        if self._heater.gv_mode == '3': return PRESET_ECO
+        elif self._heater.gv_mode == '4':  return PRESET_BOOST
+        elif self._heater.gv_mode == '2': return PRESET_AWAY
+        elif self._heater.gv_mode == '0': return PRESET_COMFORT
+        elif self._heater.gv_mode == '8': return PRESET_PROGRAM
+        else: return PRESET_NONE
+
+    @property
+    def preset_modes(self):
+        """Return a list of available preset modes or PRESET_NONE if _away_temp is undefined."""
+        return [PRESET_AWAY,PRESET_BOOST,PRESET_COMFORT,PRESET_ECO,PRESET_PROGRAM]
+
+    def set_preset_mode(self, preset_mode):
+        """Set new target preset mode."""
+        _LOGGER.error("Setting presetmode sync: " + preset_mode)
+
+    async def async_set_preset_mode(self, preset_mode):
+        """Set new target preset mode."""
+
+        if preset_mode == 'comfort':
+            self._heater.gv_mode=0
+        elif preset_mode == 'Program':
+            self._heater.gv_mode=8
+        elif preset_mode == 'eco':
+            self._heater.gv_mode=3
+        elif preset_mode == 'boost':
+            self._heater.gv_mode=4
+        elif preset_mode == 'off':
+            self._heater.gv_mode=1
+        else:
+            self._heater.gv_mode=2
+        await self._conn.set_heater_preset(self._heater.id_device, preset_mode)
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
