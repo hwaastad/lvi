@@ -4,6 +4,7 @@ ATTR_AWAY_TEMP = "away_temp"
 ATTR_COMFORT_TEMP = "comfort_temp"
 ATTR_ROOM_NAME = "room_name"
 ATTR_SLEEP_TEMP = "sleep_temp"
+MANUFACTURER = "Lvi"
 MAX_TEMP = 30
 MIN_TEMP = 5
 DOMAIN = "lvi"

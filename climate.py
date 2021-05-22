@@ -1,22 +1,18 @@
 """Support for LVI wifi-enabled home heaters."""
-import logging
 
 from lvi import Lvi
 import voluptuous as vol
+import logging
 
-from homeassistant.components.climate import PLATFORM_SCHEMA, ClimateDevice
+from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
+    CURRENT_HVAC_HEAT,
+    CURRENT_HVAC_IDLE,
     FAN_ON,
     HVAC_MODE_HEAT,
     HVAC_MODE_OFF,
     SUPPORT_FAN_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
-    SUPPORT_PRESET_MODE,
-    PRESET_AWAY,
-    PRESET_ECO,
-    PRESET_BOOST,
-    PRESET_COMFORT,
-    PRESET_NONE,
+    SUPPORT_TARGET_TEMPERATURE
 )
 from homeassistant.const import (
     ATTR_TEMPERATURE,
@@ -24,6 +20,7 @@ from homeassistant.const import (
     CONF_USERNAME,
     TEMP_CELSIUS,
 )
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -33,19 +30,15 @@ from .const import (
     ATTR_ROOM_NAME,
     ATTR_SLEEP_TEMP,
     DOMAIN,
+    MANUFACTURER,
     MAX_TEMP,
     MIN_TEMP,
     SERVICE_SET_ROOM_TEMP,
-    PRESET_PROGRAM
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE | SUPPORT_PRESET_MODE
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {vol.Required(CONF_USERNAME): cv.string, vol.Required(CONF_PASSWORD): cv.string}
-)
+SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE
 
 SET_ROOM_TEMP_SCHEMA = vol.Schema(
     {
@@ -57,16 +50,15 @@ SET_ROOM_TEMP_SCHEMA = vol.Schema(
 )
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the LVI heater."""
     lvi_data_connection = Lvi(
-        config[CONF_USERNAME],
-        config[CONF_PASSWORD],
+        entry.data[CONF_USERNAME],
+        entry.data[CONF_PASSWORD],
         websession=async_get_clientsession(hass),
     )
     if not await lvi_data_connection.connect():
-        _LOGGER.error("Failed to connect to LVI")
-        return
+        raise ConfigEntryNotReady
 
     await lvi_data_connection.find_all_heaters()
 
@@ -90,10 +82,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     )
 
 
-class LviHeater(ClimateDevice):
+class LviHeater(ClimateEntity):
     """Representation of a LVI Thermostat device."""
 
-    def __init__(self, heater,lvi_data_connection):
+    def __init__(self, heater, lvi_data_connection):
         """Initialize the thermostat."""
         self._heater = heater
         self._conn = lvi_data_connection
@@ -120,7 +112,7 @@ class LviHeater(ClimateDevice):
         return self._heater.nom_appareil + '-' + self._heater.room.name
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the state attributes."""
         res = {
             "heating": self._heater.heating_up
@@ -139,7 +131,7 @@ class LviHeater(ClimateDevice):
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
-       
+
         if self._heater.gv_mode == '0':
             return self._heater.consigne_confort
         elif self._heater.gv_mode == '8':
@@ -148,7 +140,7 @@ class LviHeater(ClimateDevice):
             return self._heater.consigne_eco
         elif self._heater.gv_mode == '4':
             return self._heater.consigne_boost
-        else: 
+        else:
             return self._heater.consigne_hg
 
     @property
@@ -182,6 +174,13 @@ class LviHeater(ClimateDevice):
         return MAX_TEMP
 
     @property
+    def hvac_action(self):
+        """Return current hvac i.e. heat, cool, idle."""
+        if self._heater.is_gen1 or self._heater.is_heating == 1:
+            return CURRENT_HVAC_HEAT
+        return CURRENT_HVAC_IDLE
+
+    @property
     def hvac_mode(self) -> str:
         """Return hvac operation ie. heat, cool mode.
         Need to be one of HVAC_MODE_*.
@@ -196,43 +195,6 @@ class LviHeater(ClimateDevice):
         Need to be a subset of HVAC_MODES.
         """
         return [HVAC_MODE_HEAT, HVAC_MODE_OFF]
-
-    @property
-    def preset_mode(self):
-        """Return the current preset mode, e.g., home, away, temp."""
-
-        if self._heater.gv_mode == '3': return PRESET_ECO
-        elif self._heater.gv_mode == '4':  return PRESET_BOOST
-        elif self._heater.gv_mode == '2': return PRESET_AWAY
-        elif self._heater.gv_mode == '0': return PRESET_COMFORT
-        elif self._heater.gv_mode == '8': return PRESET_PROGRAM
-        else: return PRESET_NONE
-
-    @property
-    def preset_modes(self):
-        """Return a list of available preset modes or PRESET_NONE if _away_temp is undefined."""
-        return [PRESET_AWAY,PRESET_BOOST,PRESET_COMFORT,PRESET_ECO,PRESET_PROGRAM]
-
-    def set_preset_mode(self, preset_mode):
-        """Set new target preset mode."""
-        _LOGGER.error("Setting presetmode sync: " + preset_mode)
-
-    async def async_set_preset_mode(self, preset_mode):
-        """Set new target preset mode."""
-
-        if preset_mode == 'comfort':
-            self._heater.gv_mode=0
-        elif preset_mode == 'Program':
-            self._heater.gv_mode=8
-        elif preset_mode == 'eco':
-            self._heater.gv_mode=3
-        elif preset_mode == 'boost':
-            self._heater.gv_mode=4
-        elif preset_mode == 'off':
-            self._heater.gv_mode=1
-        else:
-            self._heater.gv_mode=2
-        await self._conn.set_heater_preset(self._heater.id_device, preset_mode)
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
@@ -256,3 +218,19 @@ class LviHeater(ClimateDevice):
     async def async_update(self):
         """Retrieve latest state."""
         self._heater = await self._conn.update_device(self._heater.id_device)
+
+    @property
+    def device_id(self):
+        """Return the ID of the physical device this sensor is part of."""
+        return self._heater.id_device
+
+    @property
+    def device_info(self):
+        """Return the device_info of the device."""
+        device_info = {
+            "identifiers": {(DOMAIN, self.id_device)},
+            "name": self.name,
+            "manufacturer": MANUFACTURER,
+            "model": "generation 2",
+        }
+        return device_info
