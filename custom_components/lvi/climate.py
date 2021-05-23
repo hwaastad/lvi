@@ -104,7 +104,7 @@ class LviHeater(ClimateEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return self._heater.id_device
+        return self._heater.device_id
 
     @property
     def name(self):
@@ -176,7 +176,7 @@ class LviHeater(ClimateEntity):
     @property
     def hvac_action(self):
         """Return current hvac i.e. heat, cool, idle."""
-        if self._heater.is_gen1 or self._heater.is_heating == 1:
+        if self._heater.heating_up:
             return CURRENT_HVAC_HEAT
         return CURRENT_HVAC_IDLE
 
@@ -201,34 +201,34 @@ class LviHeater(ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        await self._conn.set_heater_temp(self._heater.id_device, int(temperature))
+        await self._conn.set_heater_temp(self._heater.device_id, int(temperature))
 
     async def async_set_fan_mode(self, fan_mode):
         """Set new target fan mode."""
         fan_status = 1 if fan_mode == FAN_ON else 0
-        await self._conn.heater_control(self._heater.id_device, fan_status=fan_status)
+        await self._conn.heater_control(self._heater.device_id, fan_status=fan_status)
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
         if hvac_mode == HVAC_MODE_HEAT:
-            await self._conn.heater_control(self._heater.id_device, power_status=1)
+            await self._conn.heater_control(self._heater.device_id, power_status=1)
         elif hvac_mode == HVAC_MODE_OFF:
-            await self._conn.heater_control(self._heater.id_device, power_status=0)
+            await self._conn.heater_control(self._heater.device_id, power_status=0)
 
     async def async_update(self):
         """Retrieve latest state."""
-        self._heater = await self._conn.update_device(self._heater.id_device)
+        self._heater = await self._conn.update_device(self._heater.device_id)
 
     @property
     def device_id(self):
         """Return the ID of the physical device this sensor is part of."""
-        return self._heater.id_device
+        return self._heater.device_id
 
     @property
     def device_info(self):
         """Return the device_info of the device."""
         device_info = {
-            "identifiers": {(DOMAIN, self.id_device)},
+            "identifiers": {(DOMAIN, self.device_id)},
             "name": self.name,
             "manufacturer": MANUFACTURER,
             "model": "generation 2",

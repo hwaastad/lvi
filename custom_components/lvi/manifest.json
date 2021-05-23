@@ -3,7 +3,7 @@
   "name": "Lvi",
   "documentation": "https://www.home-assistant.io/integrations/lvi",
   "requirements": [
-    "lviheater==0.1.0"
+    "lviheater>=0.1.1"
   ],
   "dependencies": [],
   "config_flow": true,
